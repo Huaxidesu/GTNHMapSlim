@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
+import json
 import mmap
 import os
 import shutil
@@ -533,9 +534,13 @@ def _work(path_str: str) -> dict:
 
     if _OPTS["apply"] and scan.deleted:
         try:
+            size_before = path.stat().st_size
             result["action"] = rewrite_region(scan, _BACKUP_ROOT, _WORLD_ROOT)
+            size_after = path.stat().st_size if path.exists() else 0
+            result["freed"] = max(0, size_before - size_after)
         except Exception as exc:
             result["error"] = f"写入失败 {type(exc).__name__}: {exc}"
+    result.setdefault("freed", 0)
     return result
 
 
@@ -547,6 +552,63 @@ def find_region_dirs(world: Path) -> list[Path]:
     """递归找出所有 region 目录（含 DIM-1 / DIM1 / mod 维度目录）。"""
     return [p for p in sorted(world.rglob("region"))
             if p.is_dir() and any(p.glob("*.mca"))]
+
+
+# 本工具生成的备份目录名包含以下标记，发现存档单元时跳过，避免二次处理
+BACKUP_MARKERS = ("_chunkcleaner_backup_", "_gtnhslim_backup_", ".gtnhslim")
+
+# 发现存档单元时的默认递归深度上限，防止误选整盘后遍历过深
+DEFAULT_MAX_DEPTH = 8
+
+
+def discover_units(root: Path, max_depth: int = DEFAULT_MAX_DEPTH) -> list[dict]:
+    """在 root 之下递归发现存档单元。
+
+    存档单元定义为含 *.mca 的 region 目录，其父目录即该单元的世界根
+    （主世界为 region 的父目录本身，维度为 DIM-1、DIM100 等目录）。
+    1.7.10 的 GTNH 服务器将每个维度存为独立的完整世界目录，因此不能以
+    level.dat 作为世界判定标志，region 目录才是唯一可靠的标志。
+
+    返回列表元素包含 name、world_root、region_dir、rel、files、bytes。
+    """
+    root = root.resolve()
+    units: list[dict] = []
+    base_depth = len(root.parts)
+
+    for dirpath, dirnames, _filenames in os.walk(root):
+        cur = Path(dirpath)
+        dirnames[:] = [d for d in dirnames
+                       if not any(marker in d for marker in BACKUP_MARKERS)]
+        if len(cur.parts) - base_depth >= max_depth:
+            dirnames[:] = []
+        if cur.name != "region":
+            continue
+        dirnames[:] = []                       # region 目录内部不再深入
+
+        mcas = sorted(cur.glob("*.mca"))
+        if not mcas:
+            continue
+
+        total = 0
+        for mca in mcas:
+            try:
+                total += mca.stat().st_size
+            except OSError:
+                pass
+
+        world_root = cur.parent
+        rel = "." if world_root == root else str(world_root.relative_to(root))
+        units.append({
+            "name": root.name if world_root == root else world_root.name,
+            "world_root": str(world_root),
+            "region_dir": str(cur),
+            "rel": rel,
+            "files": len(mcas),
+            "bytes": total,
+        })
+
+    units.sort(key=lambda u: (u["rel"] != ".", u["rel"]))
+    return units
 
 
 def _fmt_size(n: float) -> str:
@@ -589,6 +651,10 @@ def main(argv=None) -> int:
     ap.add_argument("--full-decompress", action="store_true",
                     help="调试用：完整解压每个区块（老版本行为，用于对比性能）")
     ap.add_argument("--verbose", action="store_true", help="逐个文件打印明细")
+    ap.add_argument("--only", action="append", metavar="REGION_DIR",
+                    help="仅处理指定的 region 目录，可重复指定，用于图形界面按单元筛选")
+    ap.add_argument("--progress-json", action="store_true",
+                    help="以 NDJSON 输出结构化进度供图形界面读取，人类可读信息改写到标准错误")
     args = ap.parse_args(argv)
 
     world = Path(args.world).expanduser().resolve()
@@ -596,9 +662,26 @@ def main(argv=None) -> int:
         print(f"[错误] 存档目录不存在: {world}")
         return 2
 
+    # 结构化输出模式下，标准输出专用于 NDJSON，人类可读信息改走标准错误
+    json_out = sys.stdout if args.progress_json else None
+    if json_out is not None:
+        sys.stdout = sys.stderr
+
+    def emit(record: dict) -> None:
+        if json_out is None:
+            return
+        json_out.write(json.dumps(record, ensure_ascii=False) + "\n")
+        json_out.flush()
+
     threshold = args.ticks if args.ticks is not None else int(args.minutes * TICKS_PER_MINUTE)
 
     region_dirs = find_region_dirs(world)
+    if args.only:
+        wanted = {str(Path(p).expanduser().resolve()) for p in args.only}
+        region_dirs = [d for d in region_dirs if str(d.resolve()) in wanted]
+        if not region_dirs:
+            print(f"[错误] --only 指定的目录中没有任何 region/*.mca")
+            return 2
     if not region_dirs:
         print(f"[错误] 在 {world} 下没找到任何 region/*.mca")
         return 2
@@ -625,6 +708,17 @@ def main(argv=None) -> int:
     print(f"模式: {'执行' if args.apply else '预览（不改动任何文件）'}，{mode}")
     print("-" * 78)
 
+    emit({
+        "t": "meta",
+        "world": str(world),
+        "files": len(files),
+        "bytes": total_bytes,
+        "dirs": len(region_dirs),
+        "threshold": threshold,
+        "mode": "compact-only" if args.compact_only else ("fast" if args.no_compact else "compact"),
+        "apply": bool(args.apply),
+    })
+
     backup_root = None
     if args.apply and not args.no_backup:
         if args.backup:
@@ -633,6 +727,7 @@ def main(argv=None) -> int:
             stamp = time.strftime("%Y%m%d_%H%M%S")
             backup_root = world.parent / f"{world.name}_chunkcleaner_backup_{stamp}"
         backup_root.mkdir(parents=True, exist_ok=True)
+        emit({"t": "backup", "path": str(backup_root)})
 
     if args.jobs:
         jobs = args.jobs
@@ -665,6 +760,7 @@ def main(argv=None) -> int:
         if res.get("error") and res.get("present") is None:
             errors += 1
             print(f"  [跳过] {Path(res['path']).name}: {res['error']}")
+            emit({"t": "file", "path": res["path"], "error": res["error"], "action": "error"})
             return
         total_present += res["present"]
         total_deleted += res["deleted"]
@@ -672,6 +768,12 @@ def main(argv=None) -> int:
         total_unreadable += res["unreadable"]
         freed_bytes += res.get("freed") or 0
         prefix_hits += res.get("prefix_hits", 0)
+        emit({"t": "file", "path": res["path"],
+              "unit": str(Path(res["path"]).parent),
+              "present": res["present"], "deleted": res["deleted"],
+              "missing": res["missing"], "unreadable": res["unreadable"],
+              "freed": res.get("freed") or 0,
+              "action": res.get("action"), "error": res.get("error")})
         if res.get("error"):
             errors += 1
             print(f"  [警告] {Path(res['path']).name}: {res['error']}")
@@ -721,6 +823,13 @@ def main(argv=None) -> int:
     elapsed = time.time() - t0
     print("-" * 78)
 
+    def finish() -> None:
+        emit({"t": "done", "present": total_present, "deleted": total_deleted,
+              "missing": total_missing, "unreadable": total_unreadable,
+              "freed": freed_bytes, "errors": errors, "rewritten": rewritten,
+              "removed": removed, "patched": patched,
+              "elapsed": round(time.time() - t0, 3)})
+
     if args.compact_only:
         print(f"合计: {total_present:,} 个区块，压实后可回收 {_fmt_size(freed_bytes)}"
               f"（{_fmt_size(total_bytes)} -> {_fmt_size(total_bytes - freed_bytes)}），"
@@ -731,6 +840,7 @@ def main(argv=None) -> int:
                 print(f"备份目录: {backup_root}")
         else:
             print("这是预览，未改动任何文件。确认无误后加 --apply 执行（会自动备份）。")
+        finish()
         return 0
 
     pct = (total_deleted / total_present * 100) if total_present else 0.0
@@ -764,6 +874,7 @@ def main(argv=None) -> int:
             w.writerows(rows)
         print(f"删除清单已写入: {csv_path}  ({len(rows)} 行)")
 
+    finish()
     return 0
 
 

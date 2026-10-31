@@ -46,6 +46,8 @@ python gtnh_map_slim.py --world "/path/to/saves/GTNH" --minutes 30 --apply --csv
 | `--since N` | 增量模式：仅处理最近 N 天内改动过的 region 文件 |
 | `--full-decompress` | 完整解压每个区块，用于性能对比 |
 | `--verbose` | 输出逐文件明细 |
+| `--only DIR` | 仅处理指定的 region 目录，可重复指定 |
+| `--progress-json` | 以 NDJSON 输出结构化进度，人类可读信息改写到标准错误 |
 
 程序会递归扫描 `region/`、`DIM-1/region/`、`DIM1/region/` 以及模组维度目录下的 `*.mca`。
 
@@ -64,6 +66,21 @@ python gtnh_map_slim.py --world "/path/to/saves/GTNH" --minutes 30 --apply --csv
 1. 预览并导出清单，核对将被删除的区域。
 2. `--apply --no-compact` 快速生效，进入游戏后对应区块会重新生成。
 3. 在停机窗口执行 `--compact-only --apply` 回收磁盘空间。
+
+## 图形界面
+
+双击 `run_gui.bat`，或在命令行执行 `python gui/server.py`。程序会启动本地服务并打开页面。
+
+界面流程：拖入或选择目录 → 自动列出该目录下的全部世界 → 勾选、设定阈值与写入方式 → 点击「精简」。
+服务仅监听 `127.0.0.1`，不对外暴露。
+
+存档单元以 `region/` 目录为判定依据。1.7.10 的服务器存档常把每个维度存成独立世界目录
+（`DIM-1`、`DIM100`、`PERSONAL_DIM_180` 等，各自带有 `level.dat` 与 `region/`），
+因此不能以 `level.dat` 作为世界标志。选择服务器根目录即可一次性处理全部维度。
+
+浏览器出于安全限制不会向页面提供拖入目录的绝对路径，只能提供名称。
+拖入后服务会在本地磁盘上按名称做受限深度搜索；若找到多个同名目录会列出候选。
+需要精确定位时使用「选择文件夹」按钮（调用 Windows 原生对话框）或直接粘贴路径。
 
 ## 性能
 
@@ -95,17 +112,23 @@ python gtnh_map_slim.py --world "/path/to/saves/GTNH" --minutes 30 --apply --csv
 ## 目录结构
 
 ```
-gtnh_map_slim.py        主程序
-tests/test_map_slim.py  单元测试
-bench/bench.py          性能基准脚本
-LICENSE                 MIT 许可证
-NOTICE                  第三方项目声明
+gtnh_map_slim.py          主程序与命令行入口
+gui/server.py             图形界面服务（本地 HTTP + JSON 接口）
+gui/pick_folder.py        Windows 原生目录选择框
+gui/static/               页面资源（HTML / CSS / JS，无框架、无 CDN）
+run_gui.bat               Windows 启动脚本
+tests/test_map_slim.py    核心逻辑单元测试
+tests/test_gui_api.py     界面接口与存档单元发现测试
+bench/bench.py            性能基准脚本
+LICENSE                   MIT 许可证
+NOTICE                    第三方项目声明
 ```
 
 ## 测试与基准
 
 ```bash
 python tests/test_map_slim.py     # 10 项单元测试
+python tests/test_gui_api.py      # 10 项界面接口测试
 python bench/bench.py 30000       # 性能基准，测试数据在临时目录生成并自动清理
 ```
 
