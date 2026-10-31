@@ -105,10 +105,10 @@ def main() -> int:
 
         results = []
         for label, extra in [
-            ("旧逻辑: 完整解压, 单进程", ("--full-decompress", "--jobs", "1")),
-            ("旧逻辑: 完整解压, 8 进程", ("--full-decompress", "--jobs", "8")),
-            ("新逻辑: 8KB 前缀, 单进程", ("--jobs", "1")),
-            ("新逻辑: 8KB 前缀, 8 进程", ("--jobs", "8")),
+            ("基线：完整解压，单进程", ("--full-decompress", "--jobs", "1")),
+            ("基线：完整解压，8 进程", ("--full-decompress", "--jobs", "8")),
+            ("当前：8 KiB 前缀，单进程", ("--jobs", "1")),
+            ("当前：8 KiB 前缀，8 进程", ("--jobs", "8")),
         ]:
             best = min(run(src, *extra)[0] for _ in range(2))
             results.append((label, best))
@@ -117,7 +117,7 @@ def main() -> int:
         base = results[0][1]
         print()
         for label, dt in results[1:]:
-            print(f"  {label} 相对旧逻辑提速 {base / dt:.1f}x")
+            print(f"  {label} 相对基线提升 {base / dt:.1f}x")
 
         # 写盘：压实 vs 快速打补丁
         print()
