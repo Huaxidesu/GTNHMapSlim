@@ -1,0 +1,19 @@
+# 本地文档目录，不纳入版本控制
+doc/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# 运行产物
+*.tmp
+*.mca.tmp
+*.csv
+backup/
+backup_*/
+*_chunkcleaner_backup_*/
+bench/tmp/

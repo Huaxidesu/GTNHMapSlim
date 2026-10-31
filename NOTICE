@@ -1,0 +1,46 @@
+第三方声明
+==========
+
+本项目的判定规则与写入流程参考了下列开源项目。该项目以 MIT 许可证发布，
+允许修改、再分发与再许可，本项目据此进行独立实现。
+
+MCA Selector
+------------
+Copyright (c) 2018 - 2026 Querz
+仓库地址：https://github.com/Querz/mcaselector
+参考版本：d31bee6a7a4e894f250bb3ab47347e8c85b6ca5a（2026-09-24）
+许可证：MIT
+
+参考内容与对应关系：
+
+1. filter/filters/InhabitedTimeFilter.java
+   时长字符串到 ticks 的换算规则（秒数 x 20）。
+2. version/java_1_9/ChunkFilter_15w32a.java
+   InhabitedTime 在 1.7.10 至 1.17 存档中的读取位置（Level.InhabitedTime）。
+3. version/java_1_18/ 下的实现
+   InhabitedTime 在 1.18 及以后存档中的读取位置（根节点）。
+4. io/mca/MCAFile.java
+   deleteChunks() 的删除标记方式，deFragment() 的重写与扇区压实流程。
+
+说明：本项目为 Python 语言的独立实现，未复制上述项目的源代码文件。
+上述项目与本项目的详细对应关系见 doc/SOURCE-MAP.md。
+
+MIT 许可证全文
+--------------
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
