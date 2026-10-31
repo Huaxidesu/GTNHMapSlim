@@ -121,6 +121,19 @@ python gtnh_map_slim.py --world "/path/to/saves/GTNH" --minutes 30 --apply --csv
 4. 按 region 文件粒度多进程并行。
 5. 仅重写存在删除操作的 region 文件。
 
+## 结果验证
+
+`tools/` 提供与 MCA Selector 的结果比对工具，用于确认删除集合的一致性：
+
+```bash
+python tools/region_index.py build <region目录> baseline.pkl --jobs 8   # 改动前建立基线
+python tools/region_index.py build <region目录> after.pkl    --jobs 8   # 改动后建立索引
+python tools/compare_runs.py baseline.pkl after_mca.pkl after_mine.pkl  # 决策层比对
+```
+
+2026-11-01 在 1,795,022 个区块的真实存档上完成比对，结论为未发现误删，
+删除集合是 MCA Selector 的严格子集，详见 `doc/VERIFY-2026-11-01.md`。
+
 ## 目录结构
 
 ```
@@ -132,6 +145,8 @@ gui/static/               页面资源（HTML / CSS / JS，无框架、无 CDN�
 run_gui.bat               Windows 启动脚本
 tests/test_map_slim.py    核心逻辑单元测试
 tests/test_gui_api.py     界面接口、维度映射与存档单元发现测试
+tools/region_index.py     region 索引与区块集合比对
+tools/compare_runs.py     与对照实现做决策层比对
 bench/bench.py            性能基准脚本
 LICENSE                   MIT 许可证
 NOTICE                    第三方项目声明
