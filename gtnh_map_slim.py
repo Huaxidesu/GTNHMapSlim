@@ -38,6 +38,8 @@ import zlib
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
+import dimensions
+
 SECTOR = 4096
 HEADER_SIZE = 2 * SECTOR
 CHUNKS_PER_REGION = 1024
@@ -597,17 +599,30 @@ def discover_units(root: Path, max_depth: int = DEFAULT_MAX_DEPTH) -> list[dict]
                 pass
 
         world_root = cur.parent
-        rel = "." if world_root == root else str(world_root.relative_to(root))
+        is_root = world_root == root
+        folder = world_root.name
+        info = dimensions.describe(folder, is_root)
         units.append({
-            "name": root.name if world_root == root else world_root.name,
+            "name": folder,
+            "name_zh": info["name_zh"],
+            "mod": info["mod"],
+            "dim_id": info["dim_id"],
+            "category": info["category"],
+            "default_selected": info["default_selected"],
             "world_root": str(world_root),
             "region_dir": str(cur),
-            "rel": rel,
+            "rel": "." if is_root else str(world_root.relative_to(root)),
             "files": len(mcas),
             "bytes": total,
         })
 
-    units.sort(key=lambda u: (u["rel"] != ".", u["rel"]))
+    # 已勾选的排在前面，其次按分类与维度编号排序
+    units.sort(key=lambda u: (
+        0 if u["default_selected"] else 1,
+        dimensions.CATEGORY_ORDER.get(u["category"], 9),
+        u["dim_id"] if u["dim_id"] is not None else 10 ** 6,
+        u["name"],
+    ))
     return units
 
 

@@ -460,10 +460,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "该目录下没有找到任何 region 文件夹"}, 400)
 
             wanted = set(body.get("units") or [])
-            units = [u for u in info["units"]
-                     if not wanted or u["region_dir"] in wanted]
-            if not units:
+            if not wanted:
                 return self._json({"error": "未选择任何世界"}, 400)
+            units = [u for u in info["units"] if u["region_dir"] in wanted]
+            if not units:
+                return self._json({"error": "所选世界不属于该目录"}, 400)
 
             minutes = float(body.get("minutes") or 15)
             mode = body.get("mode") or "compact"

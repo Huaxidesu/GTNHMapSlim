@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from test_map_slim import chunk_blob, chunk_nbt_full, write_region  # noqa: E402
+import dimensions  # noqa: E402
 import gtnh_map_slim  # noqa: E402
 from gui import server as srv  # noqa: E402
 
@@ -81,6 +82,91 @@ class DiscoverTest(unittest.TestCase):
         self.assertEqual(units, [], "超出深度上限的目录不应被发现")
 
 
+class DimensionNameTest(unittest.TestCase):
+    """维度名称映射与默认勾选策略。"""
+
+    def test_known_dimensions(self):
+        cases = {
+            "DIM-1": ("下界", "dimension", True),
+            "DIM1": ("末地", "dimension", True),
+            "DIM7": ("暮色森林", "dimension", True),
+            "DIM100": ("漆黑世界", "dimension", True),
+            "DIM227": ("废土世界", "dimension", True),
+            "DIM28": ("月球", "dimension", True),
+            "DIM95": ("迈罕带", "dimension", True),
+        }
+        for folder, (name_zh, category, selected) in cases.items():
+            info = dimensions.describe(folder)
+            self.assertEqual(info["name_zh"], name_zh, folder)
+            self.assertEqual(info["category"], category, folder)
+            self.assertEqual(info["default_selected"], selected, folder)
+
+    def test_root_is_overworld(self):
+        info = dimensions.describe("World", is_root=True)
+        self.assertEqual(info["name_zh"], "主世界")
+        self.assertEqual(info["category"], "overworld")
+        self.assertTrue(info["default_selected"])
+
+    def test_personal_dimension_unchecked(self):
+        for folder in ("PERSONAL_DIM_180", "PERSONAL_DIM_203"):
+            info = dimensions.describe(folder)
+            self.assertEqual(info["category"], "personal", folder)
+            self.assertIn("家园", info["name_zh"])
+            self.assertFalse(info["default_selected"], folder)
+
+    def test_station_and_mothership_unchecked(self):
+        for folder in ("DIM_SPACESTATION5", "DIM_SPACESTATION9", "DIM4", "DIM20"):
+            info = dimensions.describe(folder)
+            self.assertEqual(info["category"], "station", folder)
+            self.assertFalse(info["default_selected"], folder)
+        info = dimensions.describe("DIM_MOTHERSHIP3")
+        self.assertEqual(info["category"], "mothership")
+        self.assertFalse(info["default_selected"])
+
+    def test_technical_dimensions_unchecked(self):
+        for folder in ("AE2", "EnderStorage"):
+            info = dimensions.describe(folder)
+            self.assertEqual(info["category"], "technical", folder)
+            self.assertFalse(info["default_selected"], folder)
+
+    def test_unknown_dimension_keeps_name(self):
+        info = dimensions.describe("DIM51")
+        self.assertEqual(info["name_zh"], "")
+        self.assertEqual(info["category"], "unknown")
+        self.assertTrue(info["default_selected"])
+
+    def test_label(self):
+        self.assertEqual(dimensions.label("DIM7", "暮色森林"), "暮色森林（DIM7）")
+        self.assertEqual(dimensions.label("DIM51", ""), "DIM51")
+
+
+class RealLayoutTest(unittest.TestCase):
+    """按实际服务器存档的目录名验证映射覆盖率。"""
+
+    FOLDERS = [
+        "DIM-1", "DIM1", "DIM2", "DIM4", "DIM7", "DIM25", "DIM28", "DIM29", "DIM30",
+        "DIM31", "DIM32", "DIM33", "DIM35", "DIM36", "DIM37", "DIM38", "DIM39",
+        "DIM40", "DIM41", "DIM42", "DIM43", "DIM44", "DIM45", "DIM46", "DIM47",
+        "DIM48", "DIM49", "DIM50", "DIM51", "DIM55", "DIM56", "DIM60", "DIM63",
+        "DIM64", "DIM69", "DIM70", "DIM71", "DIM74", "DIM77", "DIM78", "DIM79",
+        "DIM81", "DIM82", "DIM83", "DIM84", "DIM85", "DIM86", "DIM90", "DIM91",
+        "DIM92", "DIM93", "DIM94", "DIM95", "DIM100", "DIM112", "DIM173", "DIM227",
+        "DIM_MOTHERSHIP3", "DIM_SPACESTATION5", "DIM_SPACESTATION6",
+        "DIM_SPACESTATION8", "DIM_SPACESTATION9", "AE2", "EnderStorage",
+        "PERSONAL_DIM_180", "PERSONAL_DIM_199", "PERSONAL_DIM_203",
+    ]
+
+    def test_coverage(self):
+        unknown = [f for f in self.FOLDERS if dimensions.describe(f)["category"] == "unknown"]
+        self.assertEqual(unknown, ["DIM51", "DIM71", "DIM74", "DIM77", "DIM78", "DIM79"])
+
+    def test_default_selection_counts(self):
+        unchecked = [f for f in self.FOLDERS
+                     if not dimensions.describe(f)["default_selected"]]
+        self.assertEqual(len(unchecked), 11,
+                         "应为 5 个空间站、1 个母舰、2 个技术维度、3 个家园")
+
+
 class ApiTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -131,6 +217,11 @@ class ApiTest(unittest.TestCase):
     def test_start_rejects_empty_selection(self):
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             self.call("/api/start", {"root": str(self.world), "units": ["/no/such/dir"]})
+        self.assertEqual(ctx.exception.code, 400)
+
+    def test_start_rejects_missing_units(self):
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.call("/api/start", {"root": str(self.world), "units": []})
         self.assertEqual(ctx.exception.code, 400)
 
     def test_full_run(self):

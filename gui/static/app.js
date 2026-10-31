@@ -76,13 +76,17 @@
       }
       state.root = data.root;
       state.units = data.units;
-      state.selected = new Set(data.units.map(function (u) { return u.region_dir; }));
+      state.selected = new Set(data.units
+        .filter(function (u) { return u.default_selected; })
+        .map(function (u) { return u.region_dir; }));
       $("path-input").value = data.root;
       $("root-tag").textContent = data.root;
 
       var t = data.totals;
+      var excluded = data.units.length - state.selected.size;
       hint("找到 " + t.dirs + " 个世界，共 " + fmtNum(t.files) + " 个 region 文件，" +
-           fmtBytes(t.bytes) + "。", "ok");
+           fmtBytes(t.bytes) + "。" +
+           (excluded > 0 ? "其中 " + excluded + " 个默认不勾选。" : ""), "ok");
 
       renderUnits();
       $("worlds-card").classList.remove("hidden");
@@ -104,6 +108,7 @@
     state.units.forEach(function (u) {
       var row = document.createElement("label");
       row.className = "world";
+      if (u.mod) row.title = u.name + "  ·  " + u.mod;
 
       var cb = document.createElement("input");
       cb.type = "checkbox";
@@ -113,16 +118,25 @@
         else state.selected.delete(u.region_dir);
         updateRunState();
         updateFoot();
+        updateBackupHint();
       });
 
       var name = document.createElement("span");
       name.className = "w-name";
-      name.textContent = u.name;
 
-      var rel = document.createElement("span");
-      rel.className = "w-rel";
-      rel.textContent = u.rel === "." ? "（根目录）" : u.rel;
-      rel.title = u.region_dir;
+      var zh = document.createElement("b");
+      if (u.name_zh) {
+        zh.textContent = u.name_zh;
+      } else {
+        zh.textContent = "维基未收录";
+        zh.className = "plain";
+      }
+
+      var orig = document.createElement("i");
+      orig.textContent = u.name;
+
+      name.appendChild(zh);
+      name.appendChild(orig);
 
       var meta = document.createElement("span");
       meta.className = "w-meta";
@@ -130,7 +144,6 @@
 
       row.appendChild(cb);
       row.appendChild(name);
-      row.appendChild(rel);
       row.appendChild(meta);
       box.appendChild(row);
     });

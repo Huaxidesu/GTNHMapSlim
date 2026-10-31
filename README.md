@@ -78,6 +78,18 @@ python gtnh_map_slim.py --world "/path/to/saves/GTNH" --minutes 30 --apply --csv
 （`DIM-1`、`DIM100`、`PERSONAL_DIM_180` 等，各自带有 `level.dat` 与 `region/`），
 因此不能以 `level.dat` 作为世界标志。选择服务器根目录即可一次性处理全部维度。
 
+世界列表同时显示中文名与原始目录名，名称来自 GTNH 中文维基「维度」页面的维度 ID 一览表
+（版本 2.9.0），映射见 `dimensions.py`。维基未收录的维度显示为「维基未收录」并保留原始目录名。
+
+以下分类默认不勾选，需要时可在列表中手动勾选：
+
+| 分类 | 目录特征 | 说明 |
+| --- | --- | --- |
+| 私人维度（家园） | `PERSONAL_DIM_*`、编号 180 起 | 玩家自行建造的基地 |
+| 空间站 | `DIM_SPACESTATION*`、编号 3 至 24（不含 7） | Galacticraft 气体采集站 |
+| 母舰 | `DIM_MOTHERSHIP*` | UHV 阶段可建造的移动空间站 |
+| 技术维度 | `AE2`、`EnderStorage` | 模组内部存储，可能存有玩家搬运的建筑与容器内容 |
+
 浏览器出于安全限制不会向页面提供拖入目录的绝对路径，只能提供名称。
 拖入后服务会在本地磁盘上按名称做受限深度搜索；若找到多个同名目录会列出候选。
 需要精确定位时使用「选择文件夹」按钮（调用 Windows 原生对话框）或直接粘贴路径。
@@ -113,12 +125,13 @@ python gtnh_map_slim.py --world "/path/to/saves/GTNH" --minutes 30 --apply --csv
 
 ```
 gtnh_map_slim.py          主程序与命令行入口
+dimensions.py             维度名称映射与默认勾选策略
 gui/server.py             图形界面服务（本地 HTTP + JSON 接口）
 gui/pick_folder.py        Windows 原生目录选择框
 gui/static/               页面资源（HTML / CSS / JS，无框架、无 CDN）
 run_gui.bat               Windows 启动脚本
 tests/test_map_slim.py    核心逻辑单元测试
-tests/test_gui_api.py     界面接口与存档单元发现测试
+tests/test_gui_api.py     界面接口、维度映射与存档单元发现测试
 bench/bench.py            性能基准脚本
 LICENSE                   MIT 许可证
 NOTICE                    第三方项目声明
@@ -128,7 +141,7 @@ NOTICE                    第三方项目声明
 
 ```bash
 python tests/test_map_slim.py     # 10 项单元测试
-python tests/test_gui_api.py      # 10 项界面接口测试
+python tests/test_gui_api.py      # 20 项界面接口与维度映射测试
 python bench/bench.py 30000       # 性能基准，测试数据在临时目录生成并自动清理
 ```
 
