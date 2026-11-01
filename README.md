@@ -15,6 +15,11 @@
 - Python 3.10 及以上（使用 `int | None` 等类型标注语法）
 - Windows / Linux / macOS
 
+Windows 下 `run_gui.bat` 会自动查找解释器，顺序为：`PATH` 中的 `python` 或 `py`，
+然后是 `%LOCALAPPDATA%\Programs\Python`、`C:\`、`%ProgramFiles%` 下的安装目录，
+最后是本机已有的便携版 Python。全部未找到时会提示安装地址并保留窗口。
+该脚本必须以 CRLF 换行保存，`.gitattributes` 已固定 `*.bat text eol=crlf`。
+
 ## 使用方式
 
 ```bash
