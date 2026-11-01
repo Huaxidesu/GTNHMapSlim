@@ -1,8 +1,14 @@
 @echo off
 rem GTNHMapSlim launcher
-rem Locates a Python 3 interpreter, then starts the local GUI service.
+rem Prefers the local virtual environment: native window with real drag paths.
 
 cd /d "%~dp0"
+
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" "gui\server.py" --native %*
+    if errorlevel 1 pause
+    exit /b 0
+)
 
 set "PY="
 

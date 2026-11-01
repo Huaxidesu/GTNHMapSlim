@@ -158,6 +158,7 @@
     $("worlds-foot").textContent =
       "已选 " + sel.length + " / " + state.units.length + " 个世界，" +
       fmtNum(files) + " 个文件，" + fmtBytes(bytes);
+    updateVolume();
   }
 
   function updateBackupHint() {
@@ -198,6 +199,8 @@
     updateRunState();
     $("btn-run").disabled = true;
     $("result").innerHTML = "";
+    $("report").innerHTML = "";
+    $("report").classList.add("hidden");
     $("progress-card").classList.remove("hidden");
     $("btn-cancel").classList.remove("hidden");
     $("btn-cancel").disabled = false;
@@ -250,6 +253,7 @@
     state.running = false;
     updateRunState();
     $("btn-cancel").classList.add("hidden");
+    renderReport(s);
 
     var ok = s.state === "done";
     if (ok) {
@@ -284,6 +288,78 @@
       html += '<div class="msg ok">精简完成，可以重新启动服务器。</div>';
     }
     $("result").innerHTML = html;
+  }
+
+  function renderReport(s) {
+    var box = $("report");
+    var total = s.present || 0;
+    var del = s.deleted || 0;
+    if (!total && !del) { box.classList.add("hidden"); return; }
+
+    var keep = Math.max(0, total - del);
+    var pct = total ? del / total * 100 : 0;
+
+    var R = 62;
+    var C = 2 * Math.PI * R;
+    var delLen = C * (total ? del / total : 0);
+    var keepLen = C - delLen;
+
+    var before = s.bytes_total || 0;
+    var after = Math.max(0, before - (s.freed || 0));
+    var afterPct = before ? after / before * 100 : 0;
+
+    var svg = '<svg viewBox="0 0 150 150" width="150" height="150" role="img" aria-label="区块删除占比">'
+      + '<circle cx="75" cy="75" r="' + R + '" fill="none" stroke="#eef0f3" stroke-width="15"/>'
+      + '<circle cx="75" cy="75" r="' + R + '" fill="none" stroke="#d92d20" stroke-width="15"'
+      + ' stroke-dasharray="' + delLen.toFixed(2) + ' ' + (C - delLen).toFixed(2) + '"'
+      + ' transform="rotate(-90 75 75)"/>'
+      + '<circle cx="75" cy="75" r="' + R + '" fill="none" stroke="#2563eb" stroke-width="15"'
+      + ' stroke-dasharray="' + keepLen.toFixed(2) + ' ' + (C - keepLen).toFixed(2) + '"'
+      + ' stroke-dashoffset="' + (-delLen).toFixed(2) + '" transform="rotate(-90 75 75)"/>'
+      + '</svg>';
+
+    box.innerHTML =
+      '<div class="report-grid">'
+      + '<div class="donut-wrap">' + svg
+      + '<div class="donut-center"><span class="big">' + pct.toFixed(1) + '%</span>'
+      + '<span class="small">区块删除率</span></div></div>'
+      + '<div class="legend">'
+      + '<div class="legend-row"><span class="legend-dot" style="background:#d92d20"></span>'
+      + '<span class="k">已删除区块</span><span class="v">' + fmtNum(del) + '</span></div>'
+      + '<div class="legend-row"><span class="legend-dot" style="background:#2563eb"></span>'
+      + '<span class="k">保留区块</span><span class="v">' + fmtNum(keep) + '</span></div>'
+      + '<div class="legend-row"><span class="legend-dot" style="background:#eef0f3"></span>'
+      + '<span class="k">处理文件</span><span class="v">' + fmtNum(s.files_done) + '</span></div>'
+      + '</div></div>'
+      + '<div class="volbars">'
+      + '<div class="volbar-row"><span class="volbar-label">精简前</span>'
+      + '<span class="volbar-track"><span class="volbar-fill before" style="width:100%"></span></span>'
+      + '<span class="volbar-value">' + fmtBytes(before) + ' · 100%</span></div>'
+      + '<div class="volbar-row"><span class="volbar-label">精简后</span>'
+      + '<span class="volbar-track"><span class="volbar-fill after" data-w="' + afterPct.toFixed(2) + '"></span></span>'
+      + '<span class="volbar-value">' + fmtBytes(after) + ' · ' + afterPct.toFixed(1) + '%</span></div>'
+      + '</div>'
+      + '<div class="saved-line">共释放 <b>' + fmtBytes(before - after) + '</b>，'
+      + '体积降至原来的 <b>' + afterPct.toFixed(1) + '%</b>，耗时 ' + fmtDur(s.elapsed) + '</div>';
+
+    box.classList.remove("hidden");
+    requestAnimationFrame(function () {
+      var fill = box.querySelector(".volbar-fill.after");
+      if (!fill) return;
+      var pct = parseFloat(fill.getAttribute("data-w")) || 0;
+      fill.style.width = (pct > 0 && pct < 1.5 ? 1.5 : pct) + "%";
+    });
+  }
+
+  function updateVolume() {
+    var el = $("volume-before");
+    if (!el) return;
+    var sel = state.units.filter(function (u) { return state.selected.has(u.region_dir); });
+    if (!sel.length) { el.textContent = ""; return; }
+    var files = sel.reduce(function (a, u) { return a + u.files; }, 0);
+    var bytes = sel.reduce(function (a, u) { return a + u.bytes; }, 0);
+    el.innerHTML = "精简前共 <b>" + fmtNum(files) + "</b> 个 region 文件，合计 <b>"
+      + fmtBytes(bytes) + "</b>";
   }
 
   function escapeHtml(text) {
@@ -369,8 +445,22 @@
 
   // -- 绑定 -------------------------------------------------------------
 
+  function isNative() {
+    return typeof window.pywebview !== "undefined" && !!window.pywebview.api;
+  }
+
+  function updateDropNote() {
+    var note = $("dz-note");
+    if (!note) return;
+    note.textContent = isNative()
+      ? "自动读取完整路径"
+      : "浏览器模式按文件夹名定位，精确选择请用「浏览…」";
+  }
+
   function init() {
     bindDrop();
+    updateDropNote();
+    window.addEventListener("pywebviewready", updateDropNote);
 
     $("btn-pick").addEventListener("click", function () {
       hint("正在打开选择窗口…");

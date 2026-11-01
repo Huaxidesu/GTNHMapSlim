@@ -37,14 +37,18 @@
               stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <p class="dz-title">把存档文件夹拖到这里</p>
-      <p class="dz-hint">或 <button type="button" class="link" id="btn-pick">选择文件夹</button></p>
-      <p class="dz-note">选择服务器目录也可以，会自动向下找出所有世界</p>
+      <p class="dz-note" id="dz-note">自动读取完整路径</p>
     </div>
 
-    <div class="pathrow">
-      <input type="text" id="path-input" spellcheck="false"
-             placeholder="也可以直接粘贴路径，例如 D:\gtnh\gtnh3\server\World">
-      <button type="button" class="btn ghost" id="btn-load">载入</button>
+    <div class="picker">
+      <svg class="picker-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l1.6 2h9.2A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-10Z"
+              stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      </svg>
+      <input type="text" id="path-input" spellcheck="false" autocomplete="off"
+             placeholder="输入或粘贴目录路径，例如 D:\gtnh\gtnh3\server\World">
+      <button type="button" class="btn ghost" id="btn-pick">浏览…</button>
+      <button type="button" class="btn solid" id="btn-load">载入</button>
     </div>
 
     <div class="hint" id="pick-hint"></div>
@@ -114,6 +118,7 @@
   </section>
 
   <section class="actions hidden" id="actions">
+    <div class="volume" id="volume-before"></div>
     <button type="button" class="btn primary" id="btn-run">精简</button>
     <p class="warn">执行后这些区块会回到未生成状态，重新进入游戏时地形会重新生成，原有的建筑、机器与箱子不再保留。</p>
   </section>
@@ -138,6 +143,7 @@
     </div>
 
     <div class="current" id="current"></div>
+    <div class="report hidden" id="report"></div>
     <div class="result" id="result"></div>
   </section>
 

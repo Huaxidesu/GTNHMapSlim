@@ -75,7 +75,21 @@ python gtnh_map_slim.py --world "/path/to/saves/GTNH" --minutes 30 --apply --csv
 
 ## 图形界面
 
-双击 `run_gui.bat`，或在命令行执行 `python gui/server.py`。程序会启动本地服务并打开页面。
+双击 `run_gui.bat`，或在命令行执行 `python gui/server.py`。
+
+启动脚本优先使用项目内的 `.venv`，以 pywebview 打开原生窗口：此时**拖入文件夹可直接获得完整路径**，
+「浏览…」使用系统现代文件夹对话框（带地址栏，可直接粘贴路径）。`.venv` 不存在时回退到浏览器模式，
+拖入目录只能按名称在磁盘上定位。
+
+重建原生窗口环境：
+
+```bash
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install pywebview
+```
+
+页面在「精简」前显示所选世界的总文件数与体积，完成后给出区块删除率环形图、
+精简前后体积对比条，以及释放空间与耗时。
 
 界面流程：拖入或选择目录 → 自动列出该目录下的全部世界 → 勾选、设定阈值与写入方式 → 点击「精简」。
 服务仅监听 `127.0.0.1`，不对外暴露。

@@ -129,23 +129,46 @@ h1 { font-size: 19px; font-weight: 650; margin: 0; letter-spacing: .2px; }
 }
 .link:hover { text-decoration: underline; }
 
-/* 路径行 ----------------------------------------------------------- */
+/* 路径输入 --------------------------------------------------------- */
 
-.pathrow { display: flex; gap: 8px; margin-top: 12px; }
+.picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 4px 6px 4px 10px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.picker:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 
-.pathrow input {
+.picker-icon { width: 16px; height: 16px; color: var(--faint); flex: none; }
+
+.picker input {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 11px;
+  border: none;
+  outline: none;
+  padding: 6px 2px;
   font-size: 13px;
   font-family: inherit;
   color: var(--text);
-  background: #fff;
-  outline: none;
+  background: transparent;
 }
-.pathrow input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.picker input::placeholder { color: var(--faint); }
+
+.btn.solid {
+  background: var(--text);
+  border-color: var(--text);
+  color: #fff;
+  padding: 7px 16px;
+}
+.btn.solid:hover { background: #33383f; border-color: #33383f; }
 
 .hint {
   margin-top: 8px;
@@ -407,3 +430,85 @@ h1 { font-size: 19px; font-weight: 650; margin: 0; letter-spacing: .2px; }
   .stats { grid-template-columns: repeat(2, 1fr); }
   .world .w-name i { display: none; }
 }
+
+
+/* 体积摘要 --------------------------------------------------------- */
+
+.volume {
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.volume b { color: var(--text); font-weight: 600; }
+
+/* 结果报告与图表 --------------------------------------------------- */
+
+.report {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 20px;
+  align-items: center;
+}
+
+.donut-wrap { position: relative; width: 150px; height: 150px; }
+
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+.donut-center .big { font-size: 20px; font-weight: 650; letter-spacing: -.3px; }
+.donut-center .small { font-size: 11px; color: var(--faint); }
+
+.legend { display: flex; flex-direction: column; gap: 10px; }
+
+.legend-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.legend-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.legend-row .k { color: var(--muted); }
+.legend-row .v { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 550; }
+
+.volbars { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+
+.volbar-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+.volbar-label { width: 52px; color: var(--muted); flex: none; }
+.volbar-track {
+  flex: 1;
+  height: 10px;
+  background: #f1f2f4;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.volbar-fill {
+  display: block;          /* span 默认 inline，宽高不生效 */
+  height: 100%;
+  border-radius: 999px;
+  width: 0;
+  transition: width .6s cubic-bezier(.22,.61,.36,1);
+}
+.volbar-fill.before { background: #aab2bd; }
+.volbar-fill.after { background: var(--accent); box-shadow: inset 0 0 0 1px rgba(0,0,0,.04); }
+.volbar-value {
+  width: 128px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  flex: none;
+}
+
+.saved-line {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.saved-line b { color: var(--ok); font-weight: 600; font-size: 14px; }

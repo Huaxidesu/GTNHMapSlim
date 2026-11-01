@@ -501,6 +501,7 @@ def _free_port(preferred: int) -> int:
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     no_browser = "--no-browser" in argv
+    native = "--native" in argv
     port = _free_port(DEFAULT_PORT)
 
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
@@ -509,8 +510,18 @@ def main(argv: list[str] | None = None) -> int:
 
     print("GTNHMapSlim 精简工具")
     print(f"地址: {url}")
-    print("关闭此窗口即可退出。")
 
+    if native:
+        window = _open_native_window(url)
+        if window is not None:
+            print("已打开原生窗口，关闭窗口即可退出。")
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            window[0].start()
+            server.shutdown()
+            return 0
+        print("未检测到 pywebview，改用浏览器模式。")
+
+    print("关闭此窗口即可退出。")
     if not no_browser:
         threading.Timer(0.4, lambda: webbrowser.open(url)).start()
 
@@ -523,5 +534,39 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _open_native_window(url: str):
+    """创建 pywebview 原生窗口，失败时返回 None 以便回退到浏览器模式。
+
+    原生窗口下拖入文件夹可以拿到完整路径（pywebview 会在拖放产生的 File 对象上
+    附加 pywebviewFullPath），这是浏览器模式做不到的。
+    """
+    try:
+        import webview
+    except Exception as exc:                      # 未安装或依赖缺失
+        print(f"pywebview 不可用: {type(exc).__name__}: {exc}")
+        return None
+
+    try:
+        window = webview.create_window(
+            "GTNHMapSlim 存档精简", url,
+            width=940, height=900, min_size=(720, 620),
+        )
+    except Exception as exc:
+        print(f"创建窗口失败: {type(exc).__name__}: {exc}")
+        return None
+    return (webview, window)
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except BaseException:
+        # 以无控制台方式启动时，把异常写入文件便于排查
+        import traceback
+        try:
+            (ROOT / "gui-error.log").write_text(traceback.format_exc(), encoding="utf-8")
+        except Exception:
+            pass
+        raise
