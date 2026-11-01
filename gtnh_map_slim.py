@@ -382,8 +382,13 @@ def _backup(path: Path, backup_root: Path | None, world_root: Path) -> None:
 
 
 def _compact_region(path: Path, keep, backup_root: Path | None, world_root: Path,
-                    on_remove=None) -> str:
-    """把 keep 里的区块按顺序重新写一遍，压掉空洞扇区（等价 MCAFile.deFragment）。"""
+                    on_remove=None, delete_empty: bool = False) -> str:
+    """把 keep 里的区块按顺序重新写一遍，压掉空洞扇区（等价 MCAFile.deFragment）。
+
+    区块全部删除时默认把文件重写为仅含 8 KiB 头部的空 region 文件，而不是删除文件：
+    空 region 文件对游戏等价于不存在的区块，同时避免依赖文件删除权限。
+    需要真正移除文件时传入 delete_empty=True。
+    """
     _backup(path, backup_root, world_root)
 
     with path.open("rb") as fh:
@@ -418,10 +423,19 @@ def _compact_region(path: Path, keep, backup_root: Path | None, world_root: Path
                     out.write(header)
 
     if not keep:
-        path.unlink()
+        if delete_empty:
+            path.unlink()
+            result = "removed"
+        else:
+            # 写入仅含头部的空 region 文件，避免删除文件本身
+            tmp = path.with_name(path.name + ".tmp")
+            with tmp.open("wb") as out:
+                out.write(bytearray(HEADER_SIZE))
+            os.replace(tmp, path)
+            result = "emptied"
         if on_remove:
             on_remove()
-        return "removed"
+        return result
 
     os.replace(tmp, path)                                     # 必须在 mmap 关闭之后（Windows）
     if on_remove:
@@ -429,9 +443,10 @@ def _compact_region(path: Path, keep, backup_root: Path | None, world_root: Path
     return "rewritten"
 
 
-def rewrite_region(scan: RegionScan, backup_root: Path | None, world_root: Path) -> str:
+def rewrite_region(scan: RegionScan, backup_root: Path | None, world_root: Path,
+                   delete_empty: bool = False) -> str:
     """按 MCAFile.deFragment 的方式重写 region：只保留未删除的区块，扇区压实。
-    返回 'rewritten' / 'removed' / 'patched'。"""
+    返回 'rewritten' / 'emptied' / 'removed' / 'patched'。"""
     path = scan.path
     delete_set = {idx for idx, _ in scan.deleted}
 
@@ -448,7 +463,8 @@ def rewrite_region(scan: RegionScan, backup_root: Path | None, world_root: Path)
         return "patched"
 
     keep = [i for i in range(CHUNKS_PER_REGION) if i not in delete_set]
-    return _compact_region(path, keep, backup_root, world_root, lambda: _drop_mcc(scan, path))
+    return _compact_region(path, keep, backup_root, world_root,
+                           lambda: _drop_mcc(scan, path), delete_empty)
 
 
 def compact_region(path: Path, backup_root: Path | None, world_root: Path) -> str:
@@ -537,7 +553,8 @@ def _work(path_str: str) -> dict:
     if _OPTS["apply"] and scan.deleted:
         try:
             size_before = path.stat().st_size
-            result["action"] = rewrite_region(scan, _BACKUP_ROOT, _WORLD_ROOT)
+            result["action"] = rewrite_region(scan, _BACKUP_ROOT, _WORLD_ROOT,
+                                              _OPTS.get("delete_empty", False))
             size_after = path.stat().st_size if path.exists() else 0
             result["freed"] = max(0, size_before - size_after)
         except Exception as exc:
@@ -661,6 +678,8 @@ def main(argv=None) -> int:
                     help="快速模式：仅修改文件头，不重写数据（开销低，但不回收磁盘空间）")
     ap.add_argument("--compact-only", action="store_true",
                     help="只压实空洞扇区（不解压、不看阈值），用于 --no-compact 之后回收空间")
+    ap.add_argument("--delete-empty-files", action="store_true",
+                    help="区块全部删除时移除 region 文件；默认改写为 8 KiB 的空 region 文件")
     ap.add_argument("--since", type=float, default=None,
                     help="增量模式：只处理最近 N 天内改动过的 region 文件")
     ap.add_argument("--full-decompress", action="store_true",
@@ -759,11 +778,12 @@ def main(argv=None) -> int:
         "full_decompress": args.full_decompress,
         "want_rows": bool(args.csv),
         "compact_only": args.compact_only,
+        "delete_empty": args.delete_empty_files,
     }
 
     total_present = total_deleted = total_missing = total_unreadable = 0
     prefix_hits = 0
-    rewritten = removed = patched = 0
+    rewritten = emptied = removed = patched = 0
     freed_bytes = 0
     rows: list[tuple] = []
     errors = 0
@@ -771,7 +791,7 @@ def main(argv=None) -> int:
 
     def handle(res: dict) -> None:
         nonlocal total_present, total_deleted, total_missing, total_unreadable
-        nonlocal rewritten, removed, patched, errors, prefix_hits, freed_bytes
+        nonlocal rewritten, emptied, removed, patched, errors, prefix_hits, freed_bytes
         if res.get("error") and res.get("present") is None:
             errors += 1
             print(f"  [跳过] {Path(res['path']).name}: {res['error']}")
@@ -794,6 +814,8 @@ def main(argv=None) -> int:
             print(f"  [警告] {Path(res['path']).name}: {res['error']}")
         if res["action"] == "rewritten":
             rewritten += 1
+        elif res["action"] == "emptied":
+            emptied += 1
         elif res["action"] == "removed":
             removed += 1
         elif res["action"] == "patched":
@@ -842,7 +864,7 @@ def main(argv=None) -> int:
         emit({"t": "done", "present": total_present, "deleted": total_deleted,
               "missing": total_missing, "unreadable": total_unreadable,
               "freed": freed_bytes, "errors": errors, "rewritten": rewritten,
-              "removed": removed, "patched": patched,
+              "removed": removed, "emptied": emptied, "patched": patched,
               "elapsed": round(time.time() - t0, 3)})
 
     if args.compact_only:
@@ -850,7 +872,7 @@ def main(argv=None) -> int:
               f"（{_fmt_size(total_bytes)} -> {_fmt_size(total_bytes - freed_bytes)}），"
               f"耗时 {_fmt_secs(elapsed)}")
         if args.apply:
-            print(f"已重写 {rewritten} 个、删除 {removed} 个空 region 文件")
+            print(f"已重写 {rewritten} 个、清空 {emptied} 个、删除 {removed} 个空 region 文件")
             if backup_root is not None:
                 print(f"备份目录: {backup_root}")
         else:
@@ -875,7 +897,7 @@ def main(argv=None) -> int:
         print(f"      {errors} 个文件处理出错（见上方警告）")
 
     if args.apply:
-        print(f"已重写 {rewritten} 个、快速打补丁 {patched} 个、删除 {removed} 个空 region 文件")
+        print(f"已重写 {rewritten} 个、快速打补丁 {patched} 个、清空 {emptied} 个、删除 {removed} 个空 region 文件")
         if backup_root is not None:
             print(f"备份目录: {backup_root}")
     else:

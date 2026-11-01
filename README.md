@@ -48,6 +48,7 @@ python gtnh_map_slim.py --world "/path/to/saves/GTNH" --minutes 30 --apply --csv
 | `--jobs N` | 并行进程数，默认按 CPU 核心数自动取值 |
 | `--no-compact` | 快速模式：仅修改 region 文件头，不重写数据 |
 | `--compact-only` | 仅压实空洞扇区，不解压任何区块 |
+| `--delete-empty-files` | 区块全部删除时移除 region 文件；默认改写为 8 KiB 空 region |
 | `--since N` | 增量模式：仅处理最近 N 天内改动过的 region 文件 |
 | `--full-decompress` | 完整解压每个区块，用于性能对比 |
 | `--verbose` | 输出逐文件明细 |
@@ -62,7 +63,7 @@ python gtnh_map_slim.py --world "/path/to/saves/GTNH" --minutes 30 --apply --csv
 | --- | --- | --- | --- |
 | 预览 | 默认 | 只读扫描，输出统计与清单 | 不变 |
 | 快速打补丁 | `--apply --no-compact` | 仅清零文件头中的区块索引，写入开销极低 | 不回收 |
-| 压实重写 | `--apply` | 重写 region 文件并压实扇区 | 回收 |
+| 压实重写 | `--apply` | 重写 region 文件并压实扇区，区块清空的文件改写为 8 KiB 空文件 | 回收 |
 | 压实回收 | `--compact-only --apply` | 不解压，仅按文件头压实扇区 | 回收 |
 | 增量 | `--since N` | 仅处理近期变动的 region 文件 | 视模式而定 |
 
@@ -188,6 +189,8 @@ python bench/bench.py 30000       # 性能基准，测试数据在临时目录�
   建议先通过 `--csv` 导出清单核对坐标。
 - 跨区块边界的多方块结构或线缆可能出现连接中断。
 - 未处理 `entities/`、`poi/` 目录（1.7.10 存档不含该结构）。
+- 区块全部删除的 region 文件默认保留为空文件（8 KiB），不删除。空 region 对游戏等价于无区块，
+  但不依赖文件删除权限，也不会被系统或安全软件的删除保护拦截。需要彻底移除时加 `--delete-empty-files`。
 - 执行前应关闭游戏或服务端，并确保存在可用的存档副本。
 
 ## 许可证

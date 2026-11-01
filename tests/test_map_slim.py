@@ -230,8 +230,10 @@ class MapSlimTest(unittest.TestCase):
         self.assertEqual(main[3], 36000)
         self.assertIsNone(main[4], "缺 InhabitedTime 的区块默认应保留")
 
-        self.assertFalse((self.world / "DIM-1" / "region" / "r.0.0.mca").exists(),
-                         "区块全部删除时 region 文件应被删除")
+        emptied = self.world / "DIM-1" / "region" / "r.0.0.mca"
+        self.assertTrue(emptied.exists(), "默认不删除文件，应改写为空 region")
+        self.assertEqual(emptied.stat().st_size, 8192, "空 region 文件应为 8 KiB 头部")
+        self.assertEqual(read_region_chunks(emptied), {}, "空 region 不应残留任何区块")
 
         end = read_region_chunks(self.world / "DIM1" / "region" / "r.-1.0.mca")
         self.assertEqual(end, {0: 99999})
@@ -313,8 +315,18 @@ class MapSlimTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertLess(mca.stat().st_size, size_patched, "压实后文件应变小")
         self.assertEqual(sorted(read_region_chunks(mca)), [2, 3, 4, 33])
+        emptied = self.world / "DIM-1" / "region" / "r.0.0.mca"
+        self.assertTrue(emptied.exists(), "默认不删除文件，应改写为空 region")
+        self.assertEqual(read_region_chunks(emptied), {}, "空 region 不应残留任何区块")
+
+    def test_delete_empty_files_flag(self):
+        """--delete-empty-files 时才真正移除空 region 文件。"""
+        r = self.run_tool("--apply", "--delete-empty-files")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertFalse((self.world / "DIM-1" / "region" / "r.0.0.mca").exists(),
-                         "已清空的下界 region 应被删除")
+                         "指定该参数后应删除空 region 文件")
+        self.assertEqual(sorted(read_region_chunks(self.world / "region" / "r.0.0.mca")),
+                         [2, 3, 4, 33])
 
     def test_parallel_workers(self):
         for rx in range(2, 8):
