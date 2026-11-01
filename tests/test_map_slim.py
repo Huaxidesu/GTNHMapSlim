@@ -183,24 +183,24 @@ class MapSlimTest(unittest.TestCase):
         self.world.mkdir()
         (self.world / "level.dat").write_bytes(b"dummy")
 
-        # 主世界：0,1,5 应删；2,3,33 保留；4 缺字段默认保留
+        # 主世界：0,1,5 预期删除；2,3,33 预期保留；4 缺失字段默认保留
         write_region(self.world / "region" / "r.0.0.mca", {
             0: chunk_blob(chunk_nbt(0, 0, 0)),
             1: chunk_blob(chunk_nbt(1, 0, 6000)),
-            2: chunk_blob(chunk_nbt(2, 0, 18000)),          # 正好 15 分钟，不删
+            2: chunk_blob(chunk_nbt(2, 0, 18000)),          # 达到 15 分钟阈值，予以保留
             3: chunk_blob(chunk_nbt(3, 0, 36000)),
             4: chunk_blob(chunk_nbt(4, 0, None)),
             5: chunk_blob(chunk_nbt(5, 0, 1200), "gzip"),
             33: chunk_blob(chunk_nbt(1, 1, 20000)),
         })
 
-        # 下界：全部低于阈值 -> 整个文件应被删除
+        # 下界：全部低于阈值，预期清空/删除整个 region 文件
         write_region(self.world / "DIM-1" / "region" / "r.0.0.mca", {
             0: chunk_blob(chunk_nbt(0, 0, 100)),
             1: chunk_blob(chunk_nbt(1, 0, 200)),
         })
 
-        # 末地：高于阈值 -> 不动
+        # 末地：高于阈值，保持原样
         write_region(self.world / "DIM1" / "region" / "r.-1.0.mca", {
             0: chunk_blob(chunk_nbt(-32, 0, 99999)),
         })
@@ -257,7 +257,7 @@ class MapSlimTest(unittest.TestCase):
         self.assertIn("chunk_x", lines[0])
 
     def test_ticks_override(self):
-        # 阈值 30 分钟 -> 36000 不删、20000 删
+        # 阈值 30 分钟：36000 ticks 予以保留，20000 ticks 予以删除
         r = self.run_tool("--apply", "--ticks", "36000")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         main = read_region_chunks(self.world / "region" / "r.0.0.mca")
@@ -267,9 +267,9 @@ class MapSlimTest(unittest.TestCase):
         """包含 16 个 Sections、实体与方块实体的区块：正确读取 InhabitedTime，且保留区块字节不变。"""
         mca = self.world / "region" / "r.2.0.mca"
         write_region(mca, {
-            0: chunk_blob(chunk_nbt_full(64, 0, 9000)),    # 7.5 分钟 -> 删
-            1: chunk_blob(chunk_nbt_full(65, 0, 54000)),   # 45 分钟 -> 留
-            2: chunk_blob(chunk_nbt_full(66, 0, None)),    # 缺字段 -> 留
+            0: chunk_blob(chunk_nbt_full(64, 0, 9000)),    # 7.5 分钟：预期删除
+            1: chunk_blob(chunk_nbt_full(65, 0, 54000)),   # 45 分钟：预期保留
+            2: chunk_blob(chunk_nbt_full(66, 0, None)),    # 缺失字段：默认保留
         })
         before = raw_chunk_bytes(mca, 1)
         self.assertIsNotNone(before)
@@ -289,7 +289,7 @@ class MapSlimTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(mca.stat().st_size, size_before, "快速模式不应改变文件大小")
         self.assertEqual(sorted(read_region_chunks(mca)), [2, 3, 4, 33])
-        # 全删的 region 在快速模式下只清头，不删文件
+        # 快速打补丁模式（--no-compact）下，区块全部删除的 region 文件仅清零头部扇区表，不修改文件大小
         self.assertTrue((self.world / "DIM-1" / "region" / "r.0.0.mca").exists())
         self.assertEqual(read_region_chunks(self.world / "DIM-1" / "region" / "r.0.0.mca"), {})
 

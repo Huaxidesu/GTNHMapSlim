@@ -18,7 +18,6 @@ if not defined PY call :probe py
 if not defined PY call :scan "%LOCALAPPDATA%\Programs\Python"
 if not defined PY call :scan "C:/"
 if not defined PY call :scan "%ProgramFiles%"
-if not defined PY call :scan "%USERPROFILE%\.workbuddy-ai\binaries\python\versions"
 
 if not defined PY goto :nopython
 

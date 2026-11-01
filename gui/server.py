@@ -403,7 +403,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._start()
             if path == "/api/cancel":
                 return self._cancel()
-        except Exception as exc:                    # 接口层兜底，避免页面卡死
+        except Exception as exc:                    # 接口层异常捕获，避免前端请求超时未响应
             return self._json({"error": f"{type(exc).__name__}: {exc}"}, 500)
         return self._json({"error": "未知接口"}, 404)
 

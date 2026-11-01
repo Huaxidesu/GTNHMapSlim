@@ -59,7 +59,7 @@ _FIXED = {TAG_BYTE: 1, TAG_SHORT: 2, TAG_INT: 4, TAG_LONG: 8, TAG_FLOAT: 4, TAG_
 
 
 class TruncatedNBT(Exception):
-    """前缀不够长，还没读到 InhabitedTime 就读越界了。"""
+    """前缀长度不足，在读取到 InhabitedTime 之前已达到数据末尾。"""
 
 
 # ---------------------------------------------------------------------------
@@ -125,8 +125,8 @@ def _skip_payload(buf, pos: int, tag: int) -> int:
 def extract_chunk_info(nbt) -> tuple[int | None, int | None]:
     """返回 (InhabitedTime_ticks, DataVersion)，缺失则为 None。
 
-    nbt 允许是“截断的前缀”，只要在读越界之前拿到了 InhabitedTime 就返回成功；
-    读越界且还没拿到时抛 TruncatedNBT，由调用方决定是否完整解压。
+    nbt 支持传入截断的前缀数据：若在截断边界前解析出 InhabitedTime 则正常返回；
+    若达到边界仍未解析到目标字段，抛出 TruncatedNBT，由调用方决定是否完整解压。
     """
     if not nbt:
         return None, None
@@ -227,11 +227,11 @@ def decompress(payload: bytes, ctype: int, mcc: Path | None = None) -> bytes:
 
 
 def _chunk_info(head, ctype: int, mcc: Path | None, mm=None, span=None):
-    """先只解压前 8 KB；输入不够时再取完整数据。
+    """优先解压前 8 KB 数据；若输入不足则回退至完整解压。
 
     head 为 payload 的前 COMPRESSED_PREFIX 字节，避免为每个区块复制完整的
     60~100 KiB 压缩数据。
-    返回 (inhabited, data_version, 是否走了前缀快路径)。
+    返回 (inhabited, data_version, 是否使用前缀快路径)。
     """
     external = ctype < 0
     base = ctype + 128 if external else ctype
@@ -383,7 +383,7 @@ def _backup(path: Path, backup_root: Path | None, world_root: Path) -> None:
 
 def _compact_region(path: Path, keep, backup_root: Path | None, world_root: Path,
                     on_remove=None, delete_empty: bool = False) -> str:
-    """把 keep 里的区块按顺序重新写一遍，压掉空洞扇区（等价 MCAFile.deFragment）。
+    """按顺序重写保留的区块并压实空洞扇区（等价 MCAFile.deFragment）。
 
     区块全部删除时默认把文件重写为仅含 8 KiB 头部的空 region 文件，而不是删除文件：
     空 region 文件对游戏等价于不存在的区块，同时避免依赖文件删除权限。
@@ -696,7 +696,7 @@ def main(argv=None) -> int:
         print(f"[错误] 存档目录不存在: {world}")
         return 2
 
-    # 结构化输出模式下，标准输出专用于 NDJSON，人类可读信息改走标准错误
+    # 结构化输出模式下标准输出仅承载 NDJSON 数据流，控制台交互日志重定向至标准错误
     json_out = sys.stdout if args.progress_json else None
     if json_out is not None:
         sys.stdout = sys.stderr
@@ -767,7 +767,7 @@ def main(argv=None) -> int:
         jobs = args.jobs
     else:
         jobs = min(16, max(1, (os.cpu_count() or 4) - 1))
-        if len(files) < 4:                          # 文件数量较少时不启用进程池
+        if len(files) < 4:                          # 小于 4 个文件时直接在单进程处理，避免进程池初始化与跨进程 IPC 的额外开销
             jobs = 1
 
     opts = {
