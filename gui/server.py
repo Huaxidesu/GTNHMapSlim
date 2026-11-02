@@ -537,8 +537,8 @@ def main(argv: list[str] | None = None) -> int:
 def _open_native_window(url: str):
     """创建 pywebview 原生窗口，失败时返回 None 以便回退到浏览器模式。
 
-    原生窗口下拖入文件夹可以拿到完整路径（pywebview 会在拖放产生的 File 对象上
-    附加 pywebviewFullPath），这是浏览器模式做不到的。
+    原生窗口下拖入文件夹可以获取完整路径（pywebview 会在拖放产生的 File 对象上
+    附加 pywebviewFullPath），这是浏览器模式无法实现的。
     """
     try:
         import webview
